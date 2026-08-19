@@ -3,6 +3,8 @@
 A [COSMIC](https://system76.com/cosmic) panel applet that shows how many Claude Code
 sessions are running, which one is working, which one is waiting for you, and how
 much of your Claude subscription's 5-hour and weekly usage limits you have consumed.
+It can also tell you - as a desktop notification - when a session has finished or
+wants an answer.
 
 ```
 [ ● 2 ▲ 1 · 68% ]         <- dot in the accent colour while a session works,
@@ -22,6 +24,11 @@ much of your Claude subscription's 5-hour and weekly usage limits you have consu
 │ Weekly limit             41% │
 │ ██████████░░░░░░░░░░░░░░░░   │
 │ resets Wed 09:00             │
+│ ──────────────────────────── │
+│ Notify when a session        │
+│ finishes                 ◉── │
+│ Notify when a session        │
+│ needs me                 ◉── │
 └──────────────────────────────┘
 ```
 
@@ -67,6 +74,25 @@ its cached numbers with a fresh timestamp - including windows that have already
 reset. So the applet does not simply trust the newest snapshot: expired windows are
 dropped, the latest window boundary wins, and within one window the highest reported
 usage wins (usage only grows until the window rolls over).
+
+## Notifications
+
+Two things are worth interrupting someone for, and the applet notifies about both:
+
+* **Claude Code finished** - a session that was working went idle.
+* **Claude Code needs you** - a session opened a permission prompt or another dialog.
+
+Both are on by default and either can be turned off in the popup. Starting a session,
+closing its terminal and a session that is already waiting when the applet starts are
+all silent: restarting the panel must not replay the state of the world as news.
+
+The panel runs one applet process per monitor, so the processes agree among
+themselves which one speaks, through a lock in the runtime directory. Whoever holds
+it notifies; if it goes away, another takes over on its next poll. Each session
+replaces its own previous notification instead of stacking up, and if there is no
+notification daemon at all the applet just carries on.
+
+Settings live in cosmic-config, under the applet's app ID.
 
 ## Install
 
@@ -171,7 +197,7 @@ and stays an explicit opt-in.
 
 | Applet | COSMIC | Claude Code |
 | --- | --- | --- |
-| 0.1.x | 1.0 | 2.1.x |
+| 0.1.x - 0.2.x | 1.0 | 2.1.x |
 
 The session files and the status line payload are Claude Code internals. If a future
 release changes them, the applet degrades to showing less rather than failing - and
