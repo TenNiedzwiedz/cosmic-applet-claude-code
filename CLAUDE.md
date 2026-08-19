@@ -69,6 +69,15 @@ field must degrade the display, never panic.
   refuses to delete the binary while the bridge would be left dangling
   (`just force=true uninstall` overrides).
 
+* **The panel runs one applet process per output.** Anything with an effect outside
+  the process - notifications above all - has to be arbitrated, or a three monitor
+  desk gets it three times. `notifications::Notifier` takes an exclusive `flock` on
+  `$XDG_RUNTIME_DIR/cosmic-applet-claude-code/notifier.lock`; the kernel releases it
+  when the process exits, so another output takes over by itself.
+* **rust-embed needs `debug-embed`.** Without it a debug build reads `i18n/` from the
+  path it was compiled in - `/src` in the container - and `just run-dev` panics on the
+  host with `LanguageNotAvailable`.
+
 ## Layout
 
 | Path | Role |
@@ -78,6 +87,8 @@ field must degrade the display, never panic.
 | `src/data/model.rs` | `AppData`, `Session`, `Limits`, `RateWindow` |
 | `src/statusline.rs` | `--status-line` mode |
 | `src/bridge.rs` | `bridge install/uninstall/status` |
+| `src/notifications.rs` | state tracking, the notifier lock, the D-Bus call |
+| `src/config.rs` | the applet's own settings, in cosmic-config |
 | `src/window.rs` | the applet UI, `panel_label` (shared with `--dump`) |
 | `i18n/{en,pl}/…ftl` | all user-visible strings, via `fl!` |
 
