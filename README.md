@@ -59,6 +59,11 @@ Session cost is collected too, but only surfaces in `--dump`; the popup keeps to
 fits. If you moved Claude Code's config directory, the applet follows
 `CLAUDE_CONFIG_DIR` just like Claude Code does.
 
+The applet re-reads those files itself rather than watching them: every two seconds
+while the popup is open or a session is working or waiting, every ten otherwise. It
+is a handful of small JSON files and one `/proc` lookup per session, and nothing runs
+in the background when the panel is not.
+
 The usage percentages are the **official** ones - the same values `/usage` prints
 inside Claude Code. Claude Code hands them to whatever status line command you
 configure; this project ships a small bridge (`--status-line`) that stores them in
@@ -87,12 +92,17 @@ closing its terminal and a session that is already waiting when the applet start
 all silent: restarting the panel must not replay the state of the world as news.
 
 The panel runs one applet process per monitor, so the processes agree among
-themselves which one speaks, through a lock in the runtime directory. Whoever holds
-it notifies; if it goes away, another takes over on its next poll. Each session
-replaces its own previous notification instead of stacking up, and if there is no
-notification daemon at all the applet just carries on.
+themselves which one speaks, through an exclusive lock on
+`$XDG_RUNTIME_DIR/cosmic-applet-claude-code/notifier.lock`. Whoever holds it
+notifies; if that process goes away the kernel drops the lock and another takes over
+on its next poll. Each session replaces its own previous notification instead of
+stacking them up, and if there is no notification daemon at all the applet just
+carries on.
 
-Settings live in cosmic-config, under the applet's app ID.
+The two switches are stored by cosmic-config in
+`~/.config/cosmic/io.github.tenniedzwiedz.CosmicAppletClaudeCode/v1/` - one small file
+per setting, written the first time you change it. Deleting that directory restores
+the defaults.
 
 ## Install
 
@@ -108,7 +118,7 @@ just install-bridge          # adds the status line hook to ~/.claude/settings.j
 
 Then add the applet: **Settings → Desktop → Panel → Applets**.
 
-The second step is optional here: when the bridge is missing the applet's popup says
+The second command is optional: when the bridge is missing, the applet's popup says
 so and offers a button that does the same thing.
 
 Building with the host toolchain instead (what distribution packagers want):
@@ -135,6 +145,13 @@ line command that no longer exists. Use `just force=true uninstall` if you
 really want to skip the check.
 
 Remove the applet from the panel in **Settings → Desktop → Panel → Applets** as well.
+
+Your settings are deliberately left behind - removing a binary is not the same as
+wanting your preferences gone. Delete
+`~/.config/cosmic/io.github.tenniedzwiedz.CosmicAppletClaudeCode/` by hand if you
+want nothing left. The timestamped `settings.json` backups stay in `~/.claude/` as
+well; `just uninstall-bridge` has already removed the bridge's own
+`~/.config/cosmic-applet-claude-code/bridge.json`.
 
 ## The status line bridge
 
