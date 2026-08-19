@@ -3,8 +3,8 @@
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
-/// Directory the snapshots written by the status line bridge live in.
-/// Kept in sync with `res/statusline-bridge.sh`.
+/// Directory the snapshots live in: written by `--status-line`
+/// (`crate::statusline`), read by the applet.
 pub const SNAPSHOT_SUBDIR: &str = "cosmic-applet-claude-code";
 
 pub fn home() -> PathBuf {

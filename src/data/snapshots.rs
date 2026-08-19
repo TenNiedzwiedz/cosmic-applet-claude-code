@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 //!
-//! Reads the snapshots written by `res/statusline-bridge.sh`. Each running
-//! Claude Code session hands its status line payload to that script, which
-//! stores it as one JSON file per session. The payload carries the official
+//! Reads the snapshots written by `--status-line` (`crate::statusline`). Each
+//! running Claude Code session hands its status line payload to that mode,
+//! which stores it as one JSON file per session. The payload carries the official
 //! subscription limits (`rate_limits`), so nothing here is estimated.
 
 use serde::Deserialize;
