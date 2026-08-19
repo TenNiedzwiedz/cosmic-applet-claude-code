@@ -90,7 +90,19 @@ fn dump() -> std::io::Result<()> {
 
 fn run_bridge(subcommand: Option<&str>) -> std::io::Result<()> {
     let message = match subcommand {
-        Some("install") => bridge::install()?,
+        Some("install") => {
+            let installed = bridge::install()?;
+            match installed.chained {
+                Some(previous) => format!(
+                    "Status line bridge installed in {}.\nYour previous status line is kept and still runs: {previous}",
+                    installed.path.display()
+                ),
+                None => format!(
+                    "Status line bridge installed in {}.",
+                    installed.path.display()
+                ),
+            }
+        }
         Some("uninstall") => bridge::uninstall()?,
         Some("status") | None => bridge::status()?,
         Some(other) => {
