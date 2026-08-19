@@ -10,6 +10,10 @@ destdir := env_var_or_default('DESTDIR', '')
 # (distribution packagers want this).
 native := 'false'
 
+# Set force=true to uninstall even while the status line bridge is still wired
+# into the user's settings.json.
+force := 'false'
+
 image := name + '-build'
 cargo-volume := name + '-cargo'
 
@@ -83,7 +87,20 @@ install: build
     @echo 'Installed. Add the applet in Settings -> Desktop -> Panel -> Applets,'
     @echo 'then run: just install-bridge'
 
+# Removing the binary while the bridge is installed leaves Claude Code running
+# a status line command that no longer exists, so refuse until the bridge is
+# out - it can only be removed by the binary we are about to delete.
 uninstall:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -x '{{bin-dst}}' ] && '{{bin-dst}}' bridge status | grep -q '^installed'; then
+        if [ '{{force}}' != 'true' ]; then
+            echo 'The status line bridge is still wired into settings.json.' >&2
+            echo "Run 'just uninstall-bridge' first, or 'just force=true uninstall'." >&2
+            exit 1
+        fi
+        echo "warning: bridge left installed; Claude Code's status line will break." >&2
+    fi
     rm -f '{{bin-dst}}' '{{desktop-dst}}' '{{metainfo-dst}}' '{{icon-dst}}'
 
 # Wire the statusline bridge into ~/.claude/settings.json (chains, never replaces).
