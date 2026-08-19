@@ -35,6 +35,19 @@
 
   <content_rating type="oars-1.1"/>
 
+  <!-- Raw URLs: they resolve once the repository is public, and the offline
+       validation in CI neither fetches nor needs them. -->
+  <screenshots>
+    <screenshot type="default">
+      <caption>Two sessions in the panel, one of them waiting for an answer</caption>
+      <image type="source" width="360" height="84">https://raw.githubusercontent.com/TenNiedzwiedz/cosmic-applet-claude-code/main/data/screenshots/panel.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The popup: sessions, usage limits and the notification switches</caption>
+      <image type="source" width="358" height="396">https://raw.githubusercontent.com/TenNiedzwiedz/cosmic-applet-claude-code/main/data/screenshots/popup.png</image>
+    </screenshot>
+  </screenshots>
+
   <releases>
     <release version="0.2.0" date="2026-08-19">
       <description>
