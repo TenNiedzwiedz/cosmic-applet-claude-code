@@ -11,7 +11,7 @@ needed on the host:
 ```sh
 just build          # release build
 just test           # unit tests
-just check          # clippy + rustfmt
+just check          # clippy, rustfmt, AppStream metadata
 just dump           # print the applet's data model as JSON
 just run-dev        # run the applet as a normal window
 ```

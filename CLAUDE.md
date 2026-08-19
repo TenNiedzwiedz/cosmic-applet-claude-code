@@ -78,7 +78,9 @@ docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/src" -w /src \
 ```
 
 With `just`: `just build | test | check | dump | run-dev | install | install-bridge |
-vendor`, plus `native=true` for the host toolchain (that is what packagers use).
+validate-metainfo | vendor`, plus `native=true` for the host toolchain (that is what
+packagers use). The build image carries `appstreamcli`, so `just check` validates the
+metainfo too - no host tooling needed.
 
 `./target/debug/cosmic-applet-claude-code --dump` prints the whole data model as JSON -
 the fastest way to check behaviour without the panel.
@@ -99,7 +101,8 @@ panel config and `settings.json` sit next to the originals).
 
 * English in code, comments, docs and commit messages; user-visible strings go through
   `fl!` with `en` + `pl` translations.
-* `cargo fmt` and `cargo clippy -- -D warnings` must be clean; CI runs both.
+* `cargo fmt` and `cargo clippy -- -D warnings` must be clean, and
+  `appstreamcli validate --no-net` must pass on the metainfo; CI runs all three.
 * Every behavioural fix gets a test, preferably built from data actually observed on a
   real machine.
 * Nothing outside the repo is modified without an explicit ask, and anything that

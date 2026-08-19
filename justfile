@@ -14,6 +14,7 @@ image := name + '-build'
 cargo-volume := name + '-cargo'
 
 bin-src := 'target' / 'release' / name
+metainfo-src := 'data' / (appid + '.metainfo.xml')
 # DESTDIR semantics: plain concatenation, so 'pkgroot' + '/usr' = 'pkgroot/usr'.
 base-dir := destdir + prefix
 bin-dst := base-dir / 'bin' / name
@@ -31,21 +32,24 @@ image:
         docker build -t '{{image}}' .
     fi
 
-# Run a cargo command, in the container unless native=true.
+# Run a command, in the container unless native=true.
 [private]
-cargo *args:
+run command:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ '{{native}}' = 'true' ]; then
-        cargo {{args}}
+        {{command}}
     else
         just native='{{native}}' image
         docker run --rm -t \
             -u "$(id -u):$(id -g)" \
             -v "$PWD:/src" -w /src \
             -v '{{cargo-volume}}:/cargo' \
-            '{{image}}' cargo {{args}}
+            '{{image}}' {{command}}
     fi
+
+[private]
+cargo *args: (run ('cargo ' + args))
 
 build: (cargo 'build --release')
 
@@ -53,7 +57,13 @@ build-debug: (cargo 'build')
 
 test: (cargo 'test')
 
-check: (cargo 'clippy --all-targets -- -D warnings') (cargo 'fmt --check')
+check: (cargo 'clippy --all-targets -- -D warnings') (cargo 'fmt --check') validate-metainfo
+
+# --no-net keeps this offline and deterministic: the <url> tags only resolve
+# once the repository is public, and a flaky network must not fail the check.
+
+# Validate the AppStream metadata that software centres read.
+validate-metainfo: (run ('appstreamcli validate --no-net --explain ' + metainfo-src))
 
 # Print the applet's data model as JSON without starting the GUI.
 dump: build-debug
@@ -65,7 +75,7 @@ run-dev: build-debug
 
 install: build
     install -Dm0755 '{{bin-src}}' '{{bin-dst}}'
-    install -Dm0644 data/{{appid}}.metainfo.xml '{{metainfo-dst}}'
+    install -Dm0644 '{{metainfo-src}}' '{{metainfo-dst}}'
     install -Dm0644 data/icons/{{appid}}-symbolic.svg '{{icon-dst}}'
     mkdir -p '{{base-dir}}/share/applications'
     sed 's|@BINDIR@|{{prefix}}/bin|g' data/{{appid}}.desktop.in > '{{desktop-dst}}'
@@ -76,8 +86,7 @@ install: build
 uninstall:
     rm -f '{{bin-dst}}' '{{desktop-dst}}' '{{metainfo-dst}}' '{{icon-dst}}'
 
-# Wire the statusline bridge into ~/.claude/settings.json (chains onto an
-# existing statusLine command instead of replacing it).
+# Wire the statusline bridge into ~/.claude/settings.json (chains, never replaces).
 install-bridge:
     '{{bin-dst}}' bridge install
 

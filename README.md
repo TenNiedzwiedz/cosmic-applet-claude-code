@@ -80,9 +80,10 @@ Building with the host toolchain instead (what distribution packagers want):
 just native=true install prefix=/usr destdir=pkgroot
 ```
 
-Other recipes: `just build`, `just build-debug`, `just test`, `just check` (clippy +
-rustfmt), `just dump` (prints the applet's data as JSON), `just run-dev` (runs it as
-a normal window), `just restart-panel`, `just vendor`, `just clean`.
+Other recipes: `just build`, `just build-debug`, `just test`, `just check` (clippy,
+rustfmt and AppStream metadata validation), `just dump` (prints the applet's data
+as JSON), `just run-dev` (runs it as a normal window), `just restart-panel`,
+`just validate-metainfo`, `just vendor`, `just clean`.
 
 ### Uninstall
 
