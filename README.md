@@ -92,6 +92,11 @@ just uninstall-bridge        # restores your previous settings.json state
 just uninstall               # removes binary, .desktop, metainfo and icon
 ```
 
+That order matters, and `just uninstall` enforces it: only the binary can
+unwire the bridge, so removing it first would leave Claude Code calling a status
+line command that no longer exists. Use `just force=true uninstall` if you
+really want to skip the check.
+
 Remove the applet from the panel in **Settings → Desktop → Panel → Applets** as well.
 
 ## The status line bridge
@@ -111,9 +116,12 @@ Remove the applet from the panel in **Settings → Desktop → Panel → Applets
   `~/.config/cosmic-applet-claude-code/bridge.json`, executed on every update with
   the same input, and its output is printed unchanged - so your status line keeps
   working exactly as before.
-* `settings.json` is backed up before every change (`settings.json.backup-<epoch>`).
+* `settings.json` is backed up before every change
+  (`settings.json.backup-<epoch-ms>`); the five newest copies are kept.
 * `just uninstall-bridge` restores the previous state.
-* `cosmic-applet-claude-code bridge status` reports what is currently configured.
+* `cosmic-applet-claude-code bridge status` reports what is currently configured,
+  including the case where the settings still point at a binary that has been
+  moved or removed.
 * Enabling a status line hides some of Claude Code's footer hints (`esc to
   interrupt`, `? for shortcuts`). That is Claude Code's behaviour, not the applet's.
 
