@@ -1,6 +1,9 @@
 no-sessions = No active sessions
 status-busy = working
+status-waiting = needs you
+status-shell = shell
 status-idle = idle
+status-unknown = ?
 five-hour = 5-hour limit
 seven-day = Weekly limit
 resets-in = resets in { $time }
