@@ -27,7 +27,14 @@ const ICON_SVG: &[u8] =
 /// Both source directories hold a handful of small JSON files, so re-reading
 /// them beats maintaining inotify watches across the atomic replaces that
 /// produce them.
-const POLL_INTERVAL: Duration = Duration::from_secs(2);
+///
+/// The fast rate only buys anything while something can change from one second
+/// to the next, so it is reserved for an open popup and for sessions that are
+/// working or blocked on the user. What the slow rate delays is noticing that
+/// an idle session started working - and by then the fast rate is back, so the
+/// transitions that matter are still seen within `POLL_ACTIVE`.
+const POLL_ACTIVE: Duration = Duration::from_secs(2);
+const POLL_IDLE: Duration = Duration::from_secs(10);
 
 const BUSY_DOT: &str = "\u{25cf}";
 /// Same block as the dot, so a panel font that renders one renders the other.
@@ -42,6 +49,17 @@ pub struct Window {
     popup: Option<Id>,
     data: AppData,
     now: i64,
+    /// Read when the popup opens, not on every tick: it costs a read of the
+    /// user's settings.json. `None` until the popup has been opened once.
+    bridge_installed: Option<bool>,
+    /// Outcome of the button below, shown until the popup closes.
+    bridge_result: Option<Result<BridgeInstalled, String>>,
+}
+
+/// What the popup needs to know about a bridge it just installed.
+#[derive(Clone, Debug)]
+pub struct BridgeInstalled {
+    chained: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -49,6 +67,7 @@ pub enum Message {
     TogglePopup,
     PopupClosed(Id),
     Tick,
+    InstallBridge,
 }
 
 impl cosmic::Application for Window {
@@ -71,6 +90,8 @@ impl cosmic::Application for Window {
             popup: None,
             data: data::collect(),
             now: data::snapshots::now(),
+            bridge_installed: None,
+            bridge_result: None,
         };
 
         (window, Task::none())
@@ -81,7 +102,7 @@ impl cosmic::Application for Window {
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
-        time::every(POLL_INTERVAL).map(|_| Message::Tick)
+        time::every(poll_interval(self.popup.is_some(), &self.data.sessions)).map(|_| Message::Tick)
     }
 
     fn update(&mut self, message: Self::Message) -> app::Task<Self::Message> {
@@ -92,6 +113,7 @@ impl cosmic::Application for Window {
                     destroy_popup(popup)
                 } else {
                     self.refresh();
+                    self.bridge_installed = Some(crate::bridge::is_installed());
 
                     cosmic::surface::surface_task(cosmic::surface::action::app_popup(
                         |_| Default::default(),
@@ -113,7 +135,29 @@ impl cosmic::Application for Window {
             Message::PopupClosed(id) => {
                 if self.popup == Some(id) {
                     self.popup = None;
+                    self.bridge_result = None;
                 }
+            }
+            Message::InstallBridge => {
+                // A handful of file operations; not worth leaving the update
+                // loop for.
+                self.bridge_result = Some(match crate::bridge::install() {
+                    Ok(installed) => {
+                        tracing::info!(
+                            path = %installed.path.display(),
+                            chained = ?installed.chained,
+                            "installed the status line bridge"
+                        );
+                        Ok(BridgeInstalled {
+                            chained: installed.chained.is_some(),
+                        })
+                    }
+                    Err(error) => {
+                        tracing::warn!(%error, "could not install the status line bridge");
+                        Err(error.to_string())
+                    }
+                });
+                self.bridge_installed = Some(crate::bridge::is_installed());
             }
         }
 
@@ -239,7 +283,10 @@ impl cosmic::Application for Window {
             }
             None => {
                 content = content.push(padded_control(text::body(fl!("no-limits"))));
-                content = content.push(padded_control(text::caption(fl!("no-limits-hint"))));
+
+                for element in self.bridge_hint() {
+                    content = content.push(padded_control(element));
+                }
             }
         }
 
@@ -279,6 +326,40 @@ impl Window {
                 .class(theme::Text::Custom(warning_text))
                 .into(),
         )
+    }
+
+    /// What to say under "usage data unavailable": either the bridge is not
+    /// installed and one button fixes that, or it is and the numbers simply
+    /// have not arrived yet.
+    fn bridge_hint(&self) -> Vec<Element<'_, Message>> {
+        let mut parts: Vec<Element<'_, Message>> = Vec::new();
+
+        if let Some(Ok(installed)) = &self.bridge_result {
+            parts.push(text::caption(fl!("bridge-installed")).into());
+            if installed.chained {
+                parts.push(text::caption(fl!("bridge-chained")).into());
+            }
+            return parts;
+        }
+
+        if let Some(Err(error)) = &self.bridge_result {
+            parts.push(text::caption(fl!("bridge-install-failed", error = error.clone())).into());
+        }
+
+        if self.bridge_installed == Some(false) {
+            if self.bridge_result.is_none() {
+                parts.push(text::caption(fl!("no-limits-hint-bridge")).into());
+            }
+            parts.push(
+                button::standard(fl!("install-bridge"))
+                    .on_press(Message::InstallBridge)
+                    .into(),
+            );
+        } else if self.bridge_result.is_none() {
+            parts.push(text::caption(fl!("no-limits-hint")).into());
+        }
+
+        parts
     }
 
     fn limit_row(&self, label: String, window: RateWindow) -> Element<'_, Message> {
@@ -328,6 +409,18 @@ fn session_row(session: &Session) -> Element<'_, Message> {
     ]
     .width(Length::Fill)
     .into()
+}
+
+/// The fast rate is only worth paying for while something can change from one
+/// moment to the next: an open popup, or a session that is working or blocked
+/// on the user.
+fn poll_interval(popup_open: bool, sessions: &[Session]) -> Duration {
+    let active = popup_open
+        || sessions
+            .iter()
+            .any(|session| session.is_busy() || session.is_waiting());
+
+    if active { POLL_ACTIVE } else { POLL_IDLE }
 }
 
 fn status_label(status: SessionStatus) -> String {
@@ -467,6 +560,26 @@ mod tests {
         assert_eq!(panel_label(&data, 1_500), "\u{25cf} 2");
         data.sessions[1].status = SessionStatus::Idle;
         assert!(!data.any_busy());
+    }
+
+    #[test]
+    fn the_poll_rate_follows_what_can_change() {
+        let idle = [session("a", SessionStatus::Idle)];
+
+        assert_eq!(poll_interval(false, &idle), POLL_IDLE);
+        assert_eq!(poll_interval(false, &[]), POLL_IDLE);
+        // An open popup is watched closely no matter what the sessions do.
+        assert_eq!(poll_interval(true, &idle), POLL_ACTIVE);
+
+        for status in [SessionStatus::Busy, SessionStatus::Waiting] {
+            assert_eq!(poll_interval(false, &[session("a", status)]), POLL_ACTIVE);
+        }
+
+        // Nothing the applet can see is moving in a shell session either.
+        assert_eq!(
+            poll_interval(false, &[session("a", SessionStatus::Shell)]),
+            POLL_IDLE
+        );
     }
 
     /// The count of sessions blocked on the user is the reason to look at the
