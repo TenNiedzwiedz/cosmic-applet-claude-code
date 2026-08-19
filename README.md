@@ -82,6 +82,9 @@ just install-bridge          # adds the status line hook to ~/.claude/settings.j
 
 Then add the applet: **Settings → Desktop → Panel → Applets**.
 
+The second step is optional here: when the bridge is missing the applet's popup says
+so and offers a button that does the same thing.
+
 Building with the host toolchain instead (what distribution packagers want):
 
 ```sh
@@ -126,6 +129,8 @@ Remove the applet from the panel in **Settings → Desktop → Panel → Applets
   working exactly as before.
 * `settings.json` is backed up before every change
   (`settings.json.backup-<epoch-ms>`); the five newest copies are kept.
+* The applet's popup offers an **Install bridge** button whenever the bridge is not
+  configured, so none of this needs a terminal.
 * `just uninstall-bridge` restores the previous state.
 * `cosmic-applet-claude-code bridge status` reports what is currently configured,
   including the case where the settings still point at a binary that has been
