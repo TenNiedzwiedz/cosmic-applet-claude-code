@@ -1,6 +1,9 @@
 no-sessions = Brak aktywnych sesji
 status-busy = pracuje
+status-waiting = czeka na Ciebie
+status-shell = powłoka
 status-idle = bezczynna
+status-unknown = ?
 five-hour = Limit 5h
 seven-day = Limit tygodniowy
 resets-in = reset za { $time }
