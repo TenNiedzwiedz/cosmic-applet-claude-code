@@ -6,14 +6,25 @@ use serde::Serialize;
 #[serde(rename_all = "lowercase")]
 pub enum SessionStatus {
     Busy,
+    /// Claude Code is blocked on the user: a permission prompt, a plan review
+    /// or another dialog is waiting for an answer. The reason travels in the
+    /// session file too, but it is not ours to display.
+    Waiting,
+    /// The session dropped to a shell.
+    Shell,
     Idle,
     Unknown,
 }
 
 impl From<Option<&str>> for SessionStatus {
+    /// Claude Code writes one of `busy`, `shell`, `idle` or `waiting`.
+    /// Anything else is a value from a future release, and guessing what it
+    /// means would be worse than admitting we do not know.
     fn from(value: Option<&str>) -> Self {
         match value {
             Some("busy") => Self::Busy,
+            Some("waiting") => Self::Waiting,
+            Some("shell") => Self::Shell,
             Some("idle") => Self::Idle,
             _ => Self::Unknown,
         }
@@ -28,6 +39,8 @@ pub struct Session {
     pub name: String,
     pub cwd: String,
     pub status: SessionStatus,
+    /// Unix milliseconds, when Claude Code last changed `status`.
+    pub status_updated_at: Option<i64>,
     /// Unix milliseconds.
     pub started_at: Option<i64>,
     pub version: Option<String>,
@@ -48,6 +61,11 @@ impl Session {
 
     pub fn is_busy(&self) -> bool {
         self.status == SessionStatus::Busy
+    }
+
+    /// Blocked on the user - the one state worth interrupting them for.
+    pub fn is_waiting(&self) -> bool {
+        self.status == SessionStatus::Waiting
     }
 }
 
@@ -104,6 +122,10 @@ impl AppData {
 
     pub fn any_busy(&self) -> bool {
         self.busy_count() > 0
+    }
+
+    pub fn waiting_count(&self) -> usize {
+        self.sessions.iter().filter(|s| s.is_waiting()).count()
     }
 
     /// The percentage shown in the panel, or `None` once the window it
