@@ -36,6 +36,19 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.2.0" date="2026-08-19">
+      <description>
+        <p>
+          Sessions waiting for an answer are now called out in the panel and the popup
+          instead of looking idle, and desktop notifications report a session that has
+          finished or that needs you.
+        </p>
+        <p>
+          The status line bridge can be installed from the popup, and the applet polls
+          less often while nothing is happening.
+        </p>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-08-19">
       <description>
         <p>First release: session list, busy indicator, 5-hour and weekly usage windows.</p>
