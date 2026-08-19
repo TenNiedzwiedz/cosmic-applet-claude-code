@@ -8,8 +8,10 @@
 //! and `bridge install` wires that up in the user's settings.
 
 mod bridge;
+mod config;
 mod data;
 mod localize;
+mod notifications;
 mod statusline;
 mod window;
 
