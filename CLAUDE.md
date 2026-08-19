@@ -53,12 +53,17 @@ field must degrade the display, never panic.
   deliberately not parsed and not displayed.
 * **`/proc/<pid>/stat` field 22 is index 19 after the last `)`** - the command name may
   contain spaces and brackets, so never split the whole line.
-* Snapshots are written by rename, so file watches break; the applet polls every 2 s
-  (`POLL_INTERVAL`). Do not "fix" this with inotify without handling replaces.
+* Snapshots are written by rename, so file watches break; the applet polls instead
+  (`POLL_ACTIVE` 2 s while the popup is open or a session is working or waiting,
+  `POLL_IDLE` 10 s otherwise - the slow rate only delays noticing that an idle session
+  started working). Do not "fix" this with inotify without handling replaces.
 * `bridge install` edits the user's `~/.claude/settings.json`. It backs the file up
   (`settings.json.backup-<epoch-ms>`, the five newest kept), keeps any existing
   `statusLine` by chaining to it, and `bridge uninstall` restores it. Keep that
   contract.
+* The popup offers an install button when the bridge is missing, so `bridge::install`
+  reports what it did (`Installed`) instead of returning prose - the command line
+  words it in English, the applet through `fl!`.
 * `bridge status` prints English, never `fl!`, and its output starts with `installed`
   exactly when our bridge is wired up - `just uninstall` greps for that prefix and
   refuses to delete the binary while the bridge would be left dangling
