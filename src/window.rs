@@ -10,14 +10,19 @@ use cosmic::iced::{
     widget::{column, row},
     window::Id,
 };
-use cosmic::widget::{autosize, button, container, divider, icon, progress_bar, text};
+use cosmic::widget::{autosize, button, container, divider, icon, progress_bar, text, toggler};
 use cosmic::{Element, Task, app, theme};
+use std::collections::HashMap;
 use std::sync::LazyLock;
 use std::time::Duration;
 
+use cosmic::cosmic_config::CosmicConfigEntry;
+
+use crate::config::Config;
 use crate::data;
 use crate::data::model::{AppData, RateWindow, Session, SessionStatus};
 use crate::fl;
+use crate::notifications::{self, Event, Kind, Notifier, Tracker};
 
 pub const APP_ID: &str = "io.github.tenniedzwiedz.CosmicAppletClaudeCode";
 
@@ -54,6 +59,13 @@ pub struct Window {
     bridge_installed: Option<bool>,
     /// Outcome of the button below, shown until the popup closes.
     bridge_result: Option<Result<BridgeInstalled, String>>,
+    config_handler: Option<cosmic::cosmic_config::Config>,
+    config: Config,
+    tracker: Tracker,
+    notifier: Notifier,
+    /// The notification each session last produced, so the next one for that
+    /// session replaces it instead of stacking up.
+    notification_ids: HashMap<String, u32>,
 }
 
 /// What the popup needs to know about a bridge it just installed.
@@ -68,6 +80,9 @@ pub enum Message {
     PopupClosed(Id),
     Tick,
     InstallBridge,
+    Notified { session_id: String, id: Option<u32> },
+    ToggleNotifyFinished(bool),
+    ToggleNotifyWaiting(bool),
 }
 
 impl cosmic::Application for Window {
@@ -85,14 +100,24 @@ impl cosmic::Application for Window {
     }
 
     fn init(core: app::Core, _flags: Self::Flags) -> (Self, app::Task<Self::Message>) {
-        let window = Self {
+        let (config_handler, config) = crate::config::load();
+
+        let mut window = Self {
             core,
             popup: None,
             data: data::collect(),
             now: data::snapshots::now(),
             bridge_installed: None,
             bridge_result: None,
+            config_handler,
+            config,
+            tracker: Tracker::default(),
+            notifier: Notifier::default(),
+            notification_ids: HashMap::new(),
         };
+
+        // Record where every session stands without announcing any of it.
+        let _ = window.observe();
 
         (window, Task::none())
     }
@@ -107,15 +132,15 @@ impl cosmic::Application for Window {
 
     fn update(&mut self, message: Self::Message) -> app::Task<Self::Message> {
         match message {
-            Message::Tick => self.refresh(),
+            Message::Tick => return self.refresh(),
             Message::TogglePopup => {
                 return if let Some(popup) = self.popup.take() {
                     destroy_popup(popup)
                 } else {
-                    self.refresh();
+                    let refreshed = self.refresh();
                     self.bridge_installed = Some(crate::bridge::is_installed());
 
-                    cosmic::surface::surface_task(cosmic::surface::action::app_popup(
+                    let popup = cosmic::surface::surface_task(cosmic::surface::action::app_popup(
                         |_| Default::default(),
                         |app: &mut Self| {
                             let new_id = Id::unique();
@@ -129,7 +154,9 @@ impl cosmic::Application for Window {
                             )
                         },
                         None,
-                    ))
+                    ));
+
+                    Task::batch([refreshed, popup])
                 };
             }
             Message::PopupClosed(id) => {
@@ -158,6 +185,22 @@ impl cosmic::Application for Window {
                     }
                 });
                 self.bridge_installed = Some(crate::bridge::is_installed());
+            }
+            Message::Notified { session_id, id } => match id {
+                Some(id) => {
+                    self.notification_ids.insert(session_id, id);
+                }
+                None => {
+                    self.notification_ids.remove(&session_id);
+                }
+            },
+            Message::ToggleNotifyFinished(value) => {
+                self.config.notify_finished = value;
+                self.store_config();
+            }
+            Message::ToggleNotifyWaiting(value) => {
+                self.config.notify_waiting = value;
+                self.store_config();
             }
         }
 
@@ -290,6 +333,20 @@ impl cosmic::Application for Window {
             }
         }
 
+        content = content
+            .push(padded_control(divider::horizontal::default()).padding([space_xxs, space_s]));
+
+        content = content.push(padded_control(
+            toggler(self.config.notify_finished)
+                .label(fl!("settings-notify-finished"))
+                .on_toggle(Message::ToggleNotifyFinished),
+        ));
+        content = content.push(padded_control(
+            toggler(self.config.notify_waiting)
+                .label(fl!("settings-notify-waiting"))
+                .on_toggle(Message::ToggleNotifyWaiting),
+        ));
+
         self.core.applet.popup_container(content).into()
     }
 
@@ -299,9 +356,58 @@ impl cosmic::Application for Window {
 }
 
 impl Window {
-    fn refresh(&mut self) {
+    fn refresh(&mut self) -> app::Task<Message> {
         self.data = data::collect();
         self.now = data::snapshots::now();
+
+        let events = self.observe();
+        // The lock is only worth touching once there is something to say.
+        if events.is_empty() || !self.notifier.is_speaker() {
+            return Task::none();
+        }
+
+        Task::batch(
+            events
+                .into_iter()
+                .map(|event| self.notification_task(event)),
+        )
+    }
+
+    /// Fold this poll into the tracker. Split out so `init` can prime it
+    /// without announcing what was already on screen.
+    fn observe(&mut self) -> Vec<Event> {
+        self.tracker.observe(
+            &self.data.sessions,
+            self.config.notify_finished,
+            self.config.notify_waiting,
+        )
+    }
+
+    fn notification_task(&self, event: Event) -> app::Task<Message> {
+        let summary = match event.kind {
+            Kind::Finished => fl!("notify-finished"),
+            Kind::NeedsInput => fl!("notify-waiting"),
+        };
+        let body = fl!("notify-body", session = event.name, dir = event.dir);
+        let replaces = self.notification_ids.get(&event.session_id).copied();
+        let session_id = event.session_id;
+
+        cosmic::task::future(async move {
+            let id = notifications::send(summary, body, replaces).await;
+            Message::Notified { session_id, id }
+        })
+    }
+
+    /// Saving is best effort: settings that cannot be written still apply for
+    /// as long as the applet runs.
+    fn store_config(&mut self) {
+        let Some(handler) = &self.config_handler else {
+            return;
+        };
+
+        if let Err(error) = self.config.write_entry(handler) {
+            tracing::warn!(%error, "could not save the settings");
+        }
     }
 
     /// The count of sessions blocked on the user, in the warning colour, or
