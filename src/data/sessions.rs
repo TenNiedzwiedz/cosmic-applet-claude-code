@@ -18,6 +18,8 @@ struct RawSession {
     cwd: Option<String>,
     name: Option<String>,
     status: Option<String>,
+    #[serde(rename = "statusUpdatedAt")]
+    status_updated_at: Option<i64>,
     #[serde(rename = "startedAt")]
     started_at: Option<i64>,
     #[serde(rename = "procStart")]
@@ -72,6 +74,7 @@ fn parse_file(path: &Path) -> Option<Parsed> {
             name,
             cwd,
             status: SessionStatus::from(raw.status.as_deref()),
+            status_updated_at: raw.status_updated_at,
             started_at: raw.started_at,
             version: raw.version,
             context_percent: None,
@@ -135,7 +138,7 @@ mod tests {
 
     #[test]
     fn parses_a_real_session_file() {
-        let dir = tempdir();
+        let dir = tempdir("sessions");
         let file = dir.join("4242.json");
         std::fs::write(
             &file,
@@ -161,11 +164,45 @@ mod tests {
         std::fs::remove_dir_all(dir).unwrap();
     }
 
-    fn tempdir() -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "cosmic-applet-claude-code-test-{}",
-            std::process::id()
-        ));
+    /// A session blocked on a permission prompt: the state the applet exists
+    /// to surface. Shape taken from Claude Code 2.1.235, whose session status
+    /// is one of `busy`, `shell`, `idle`, `waiting`.
+    #[test]
+    fn a_session_waiting_for_the_user_is_not_idle() {
+        let dir = tempdir("waiting");
+        let file = dir.join("4243.json");
+        std::fs::write(
+            &file,
+            r#"{"pid":4243,"sessionId":"def","cwd":"/home/u/projects/api-server","status":"waiting","waitingFor":"input needed","statusUpdatedAt":1787129238450}"#,
+        )
+        .unwrap();
+
+        let parsed = parse_file(&file).expect("file should parse");
+        assert_eq!(parsed.session.status, SessionStatus::Waiting);
+        assert!(parsed.session.is_waiting());
+        assert!(!parsed.session.is_busy());
+        assert_eq!(parsed.session.status_updated_at, Some(1787129238450));
+
+        for (raw, expected) in [
+            ("busy", SessionStatus::Busy),
+            ("shell", SessionStatus::Shell),
+            ("idle", SessionStatus::Idle),
+            ("waiting", SessionStatus::Waiting),
+            ("something-new", SessionStatus::Unknown),
+        ] {
+            assert_eq!(SessionStatus::from(Some(raw)), expected);
+        }
+        assert_eq!(SessionStatus::from(None), SessionStatus::Unknown);
+
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// Tagged per test: the suite runs in parallel and `remove_dir_all` from
+    /// one test must not take another test's files with it.
+    fn tempdir(tag: &str) -> std::path::PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("cosmic-applet-cc-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }
