@@ -41,6 +41,11 @@ const ICON_SVG: &[u8] =
 const POLL_ACTIVE: Duration = Duration::from_secs(2);
 const POLL_IDLE: Duration = Duration::from_secs(10);
 
+/// Matches `text::caption`, which every other secondary line in the popup uses.
+const CAPTION_TEXT_SIZE: f32 = 12.0;
+/// One step down from the toggler's desktop default of 24.
+const TOGGLER_SIZE: f32 = 20.0;
+
 const BUSY_DOT: &str = "\u{25cf}";
 /// Same block as the dot, so a panel font that renders one renders the other.
 const WAITING_MARK: &str = "\u{25b2}";
@@ -336,16 +341,18 @@ impl cosmic::Application for Window {
         content = content
             .push(padded_control(divider::horizontal::default()).padding([space_xxs, space_s]));
 
-        content = content.push(padded_control(
-            toggler(self.config.notify_finished)
-                .label(fl!("settings-notify-finished"))
-                .on_toggle(Message::ToggleNotifyFinished),
-        ));
-        content = content.push(padded_control(
-            toggler(self.config.notify_waiting)
-                .label(fl!("settings-notify-waiting"))
-                .on_toggle(Message::ToggleNotifyWaiting),
-        ));
+        content = content.push(padded_control(setting_row(
+            fl!("settings-notify-finished"),
+            self.config.notify_finished,
+            space_xxs,
+            Message::ToggleNotifyFinished,
+        )));
+        content = content.push(padded_control(setting_row(
+            fl!("settings-notify-waiting"),
+            self.config.notify_waiting,
+            space_xxs,
+            Message::ToggleNotifyWaiting,
+        )));
 
         self.core.applet.popup_container(content).into()
     }
@@ -515,6 +522,29 @@ fn session_row(session: &Session) -> Element<'_, Message> {
     ]
     .width(Length::Fill)
     .into()
+}
+
+/// A settings row: caption on the left, switch pinned to the right edge.
+///
+/// The toggler defaults to `Length::Shrink` and no spacing, which wraps the row
+/// around its own contents and puts the label right against the switch - in a
+/// popup this narrow that overflows the padding. Filling the width moves the
+/// switch to the edge, and the switch is a size down from the desktop default
+/// to sit with caption text rather than tower over it.
+fn setting_row<'a>(
+    label: String,
+    value: bool,
+    spacing: u16,
+    on_toggle: fn(bool) -> Message,
+) -> Element<'a, Message> {
+    toggler(value)
+        .label(label)
+        .text_size(CAPTION_TEXT_SIZE)
+        .size(TOGGLER_SIZE)
+        .spacing(spacing)
+        .width(Length::Fill)
+        .on_toggle(on_toggle)
+        .into()
 }
 
 /// The fast rate is only worth paying for while something can change from one
