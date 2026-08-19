@@ -211,6 +211,15 @@ pub fn now() -> i64 {
         .unwrap_or_default()
 }
 
+/// The same instant in milliseconds, for names that must not collide within a
+/// second.
+pub fn now_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
