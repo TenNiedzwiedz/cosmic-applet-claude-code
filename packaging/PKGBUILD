@@ -1,0 +1,28 @@
+# Maintainer: TenNiedzwiedz
+pkgname=cosmic-applet-claude-code
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="COSMIC panel applet showing active Claude Code sessions and usage limits"
+arch=('x86_64' 'aarch64')
+url="https://github.com/TenNiedzwiedz/cosmic-applet-claude-code"
+license=('MIT')
+depends=('libxkbcommon' 'wayland' 'fontconfig' 'freetype2')
+makedepends=('cargo' 'just' 'git')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cd "$pkgname-$pkgver"
+    just native=true build
+}
+
+check() {
+    cd "$pkgname-$pkgver"
+    just native=true test
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+    just native=true prefix=/usr destdir="$pkgdir" install
+    install -Dm0644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

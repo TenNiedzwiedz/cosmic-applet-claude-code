@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.tenniedzwiedz.CosmicAppletClaudeCode</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>Claude Code Applet</name>
+  <summary>Active Claude Code sessions and usage limits in the COSMIC panel</summary>
+
+  <description>
+    <p>
+      A COSMIC panel applet that shows how many Claude Code sessions are running,
+      which of them is working right now, and how much of the Claude subscription's
+      5-hour and weekly usage limits has been consumed.
+    </p>
+    <p>
+      The usage figures are the official ones reported by Claude Code itself through
+      its status line interface - nothing is estimated, no credentials are read and
+      no network requests are made.
+    </p>
+    <p>
+      This is an unofficial community project. It is not affiliated with, endorsed by,
+      or supported by Anthropic.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">io.github.tenniedzwiedz.CosmicAppletClaudeCode.desktop</launchable>
+
+  <url type="homepage">https://github.com/TenNiedzwiedz/cosmic-applet-claude-code</url>
+  <url type="bugtracker">https://github.com/TenNiedzwiedz/cosmic-applet-claude-code/issues</url>
+
+  <developer id="io.github.tenniedzwiedz">
+    <name>TenNiedzwiedz</name>
+  </developer>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="0.1.0" date="2026-08-18">
+      <description>
+        <p>First release: session list, busy indicator, 5-hour and weekly usage windows.</p>
+      </description>
+    </release>
+  </releases>
+</component>

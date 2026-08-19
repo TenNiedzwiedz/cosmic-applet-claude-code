@@ -1,0 +1,30 @@
+# Rust build output
+/target
+
+# Vendored dependencies and release archives
+/vendor
+vendor.tar
+*.tar.gz
+*.pkg.tar.*
+
+# Local cargo overrides (the snippet `cargo vendor` prints for offline builds)
+/.cargo/config.toml
+
+# Packaging staging directories (just destdir=pkgroot install, makepkg)
+/pkgroot/
+packaging/pkg/
+packaging/src/
+
+# Editors
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*~
+
+# Patch and merge leftovers
+*.orig
+*.rej
+
+# Desktop cruft
+.DS_Store

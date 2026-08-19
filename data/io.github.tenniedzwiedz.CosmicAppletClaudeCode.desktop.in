@@ -1,0 +1,15 @@
+[Desktop Entry]
+Name=Claude Code
+Comment=Show active Claude Code sessions and usage limits in the panel
+Comment[pl]=Pokaż aktywne sesje Claude Code i zużycie limitów w panelu
+Type=Application
+Exec=@BINDIR@/cosmic-applet-claude-code
+Icon=io.github.tenniedzwiedz.CosmicAppletClaudeCode-symbolic
+Terminal=false
+Categories=COSMIC;
+Keywords=COSMIC;Applet;Claude;Claude Code;AI;Usage;Sessions;
+Keywords[pl]=COSMIC;Aplet;Claude;Claude Code;AI;Zużycie;Sesje;
+NoDisplay=true
+X-CosmicApplet=true
+X-HostWaylandDisplay=true
+X-CosmicHoverPopup=Auto
