@@ -45,7 +45,15 @@ pub fn chained_command() -> Option<String> {
         .map(str::to_string)
 }
 
-pub fn install() -> Result<String> {
+/// What `install` did, so callers can word it their own way: the command line
+/// prints prose, the applet shows a localised line.
+pub struct Installed {
+    pub path: PathBuf,
+    /// The status line that was configured before, now chained to.
+    pub chained: Option<String>,
+}
+
+pub fn install() -> Result<Installed> {
     let binary = current_binary()?;
     let command = format!("{} {MARKER}", quote(&binary.to_string_lossy()));
 
@@ -79,12 +87,9 @@ pub fn install() -> Result<String> {
     write_settings(&path, &settings)?;
     write_bridge_config(previous_command.as_deref())?;
 
-    Ok(match previous_command {
-        Some(existing) => format!(
-            "Status line bridge installed in {}.\nYour previous status line is kept and still runs: {existing}",
-            path.display()
-        ),
-        None => format!("Status line bridge installed in {}.", path.display()),
+    Ok(Installed {
+        path,
+        chained: previous_command,
     })
 }
 
@@ -141,14 +146,7 @@ pub fn uninstall() -> Result<String> {
 /// `just uninstall` branches on that. None of these strings go through `fl!` -
 /// the command line stays English so scripts can read it.
 pub fn status() -> Result<String> {
-    let path = settings_path();
-    let settings = read_settings(&path)?;
-    let command = settings
-        .get("statusLine")
-        .and_then(|value| value.get("command"))
-        .and_then(Value::as_str);
-
-    Ok(match command {
+    Ok(match configured_command()?.as_deref() {
         Some(command) if is_ours(command) => match binary_from(command) {
             // The settings still point at us, but the binary was moved or
             // removed: Claude Code runs a command that cannot work.
@@ -160,6 +158,23 @@ pub fn status() -> Result<String> {
         Some(command) => format!("not installed; another status line is configured: {command}"),
         None => "not installed".to_string(),
     })
+}
+
+/// Whether our bridge is the configured status line. Reads settings.json, so
+/// call it when the popup opens rather than on every poll.
+pub fn is_installed() -> bool {
+    matches!(configured_command(), Ok(Some(command)) if is_ours(&command))
+}
+
+/// The status line command currently in the user's settings, if any.
+fn configured_command() -> Result<Option<String>> {
+    let settings = read_settings(&settings_path())?;
+
+    Ok(settings
+        .get("statusLine")
+        .and_then(|value| value.get("command"))
+        .and_then(Value::as_str)
+        .map(str::to_string))
 }
 
 fn is_ours(command: &str) -> bool {
