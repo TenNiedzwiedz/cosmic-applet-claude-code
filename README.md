@@ -1,17 +1,19 @@
 # Claude Code applet for COSMIC
 
 A [COSMIC](https://system76.com/cosmic) panel applet that shows how many Claude Code
-sessions are running, which one is working right now, and how much of your Claude
-subscription's 5-hour and weekly usage limits you have consumed.
+sessions are running, which one is working, which one is waiting for you, and how
+much of your Claude subscription's 5-hour and weekly usage limits you have consumed.
 
 ```
-[ ● 2 · 68% ]             <- panel, dot in the accent colour while a session works
+[ ● 2 ▲ 1 · 68% ]         <- dot in the accent colour while a session works,
+                             triangle in the warning colour with the number of
+                             sessions blocked on you
 
 ┌──────────────────────────────┐
 │ cosmic-applet-4f     working │
 │ cosmic-applet · 62% context  │
 │ · Opus 5                     │
-│ api-server-7b           idle │
+│ api-server-7b      needs you │
 │ api-server · 11% context     │
 │ ──────────────────────────── │
 │ 5-hour limit             68% │
@@ -24,7 +26,8 @@ subscription's 5-hour and weekly usage limits you have consumed.
 ```
 
 On a vertical panel there is no room for the percentage, so the applet shows the
-icon and the session count only. Clicking it opens the popup either way.
+icon, the session count and - when it applies - the waiting count only. Clicking it
+opens the popup either way.
 
 > Unofficial community project. Not affiliated with, endorsed by, or supported by
 > Anthropic. "Claude" and "Claude Code" are trademarks of Anthropic.
@@ -36,9 +39,14 @@ never touches `~/.claude/.credentials.json`.
 
 | Shown | Source |
 | --- | --- |
-| Session list, working/idle, directory | `~/.claude/sessions/<pid>.json`, verified against `/proc` |
+| Session list, session state, directory | `~/.claude/sessions/<pid>.json`, verified against `/proc` |
 | 5-hour and weekly usage, reset times | Claude Code's status line payload (`rate_limits`) |
 | Context usage and model per session | the same payload |
+
+Claude Code reports one of four states per session: *working*, *needs you* (a
+permission prompt or another dialog is open), *shell* and *idle*. Anything a future
+release adds shows up as `?` rather than being guessed at. The reason a session is
+waiting is not displayed.
 
 Session cost is collected too, but only surfaces in `--dump`; the popup keeps to what
 fits. If you moved Claude Code's config directory, the applet follows
