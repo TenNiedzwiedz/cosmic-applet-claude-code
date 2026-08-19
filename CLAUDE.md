@@ -30,7 +30,7 @@ tokens to official clients, and the status line already provides the real number
 
 | Data | Source |
 | --- | --- |
-| Sessions, working/idle, cwd, name | `~/.claude/sessions/<pid>.json` (honours `CLAUDE_CONFIG_DIR`) |
+| Sessions, state, cwd, name | `~/.claude/sessions/<pid>.json` (honours `CLAUDE_CONFIG_DIR`) |
 | Liveness | `/proc/<pid>/stat` field 22 vs the file's `procStart` - PIDs get recycled |
 | Limits, context %, model, cost | status line snapshots written by `--status-line` |
 
@@ -45,6 +45,12 @@ field must degrade the display, never panic.
   later `resets_at`, and within one window prefers the higher usage (usage only grows
   until the window rolls over). Test:
   `an_idle_session_cannot_report_a_window_that_already_reset`.
+* **A session's `status` is a closed set**: `busy`, `shell`, `idle`, `waiting`
+  (verified in the Claude Code 2.1.235 bundle). `waiting` means a permission prompt or
+  another dialog is blocking on the user, and it is the state the applet exists to
+  surface - do not fold it into `idle`. Anything else must land on `Unknown` and be
+  shown as `?`. The session file also carries `waitingFor` with the reason; it is
+  deliberately not parsed and not displayed.
 * **`/proc/<pid>/stat` field 22 is index 19 after the last `)`** - the command name may
   contain spaces and brackets, so never split the whole line.
 * Snapshots are written by rename, so file watches break; the applet polls every 2 s
