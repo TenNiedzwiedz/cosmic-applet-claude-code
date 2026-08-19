@@ -1,6 +1,6 @@
 [package]
 name = "cosmic-applet-claude-code"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 description = "COSMIC panel applet showing active Claude Code sessions and subscription usage limits"
@@ -19,7 +19,14 @@ libcosmic = { git = "https://github.com/pop-os/libcosmic", rev = "511384f6206527
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 i18n-embed = { version = "0.16", features = ["fluent-system", "desktop-requester"] }
 i18n-embed-fl = "0.10"
-rust-embed = "8"
+# debug-embed: without it a debug build reads i18n/ from the path it was
+# compiled in, which does not exist when the container builds it and the host
+# runs it - `just run-dev` panicked on the missing fallback language.
+rust-embed = { version = "8", features = ["debug-embed"] }
+# Both already build as part of libcosmic's tree (cosmic-config pulls zbus,
+# winit pulls rustix), so neither costs extra compilation.
+rustix = { version = "1", features = ["fs"] }
+zbus = { version = "5", default-features = false, features = ["tokio"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
