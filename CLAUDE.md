@@ -49,9 +49,14 @@ field must degrade the display, never panic.
   contain spaces and brackets, so never split the whole line.
 * Snapshots are written by rename, so file watches break; the applet polls every 2 s
   (`POLL_INTERVAL`). Do not "fix" this with inotify without handling replaces.
-* `bridge install` edits the user's `~/.claude/settings.json`. It backs the file up,
-  keeps any existing `statusLine` by chaining to it, and `bridge uninstall` restores it.
-  Keep that contract.
+* `bridge install` edits the user's `~/.claude/settings.json`. It backs the file up
+  (`settings.json.backup-<epoch-ms>`, the five newest kept), keeps any existing
+  `statusLine` by chaining to it, and `bridge uninstall` restores it. Keep that
+  contract.
+* `bridge status` prints English, never `fl!`, and its output starts with `installed`
+  exactly when our bridge is wired up - `just uninstall` greps for that prefix and
+  refuses to delete the binary while the bridge would be left dangling
+  (`just force=true uninstall` overrides).
 
 ## Layout
 
