@@ -16,7 +16,7 @@ use std::sync::LazyLock;
 use std::time::Duration;
 
 use crate::data;
-use crate::data::model::{AppData, RateWindow, Session};
+use crate::data::model::{AppData, RateWindow, Session, SessionStatus};
 use crate::fl;
 
 pub const APP_ID: &str = "io.github.tenniedzwiedz.CosmicAppletClaudeCode";
@@ -30,6 +30,8 @@ const ICON_SVG: &[u8] =
 const POLL_INTERVAL: Duration = Duration::from_secs(2);
 
 const BUSY_DOT: &str = "\u{25cf}";
+/// Same block as the dot, so a panel font that renders one renders the other.
+const WAITING_MARK: &str = "\u{25b2}";
 const SEPARATOR: &str = " \u{b7} ";
 
 static AUTOSIZE_MAIN_ID: LazyLock<cosmic::widget::Id> =
@@ -148,6 +150,10 @@ impl cosmic::Application for Window {
             .spacing(4)
             .align_y(Alignment::Center);
 
+            if let Some(badge) = self.waiting_badge(true) {
+                parts = parts.push(badge);
+            }
+
             if let Some(percent) = self.data.five_hour_percent(self.now) {
                 parts = parts
                     // Extra padding on both sides of the separator, on top of
@@ -159,13 +165,18 @@ impl cosmic::Application for Window {
             parts.into()
         } else {
             // A vertical panel has no room for the percentage.
-            column![
+            let mut parts = column![
                 applet_icon,
                 self.core.applet.text(self.data.sessions.len().to_string())
             ]
             .spacing(2)
-            .align_x(Alignment::Center)
-            .into()
+            .align_x(Alignment::Center);
+
+            if let Some(badge) = self.waiting_badge(false) {
+                parts = parts.push(badge);
+            }
+
+            parts.into()
         };
 
         let padding = self.core.applet.suggested_padding(true).0;
@@ -246,6 +257,30 @@ impl Window {
         self.now = data::snapshots::now();
     }
 
+    /// The count of sessions blocked on the user, in the warning colour, or
+    /// nothing at all when none is. A vertical panel cannot grow wider, so it
+    /// gets the tighter form without the space.
+    fn waiting_badge(&self, spaced: bool) -> Option<Element<'_, Message>> {
+        let count = self.data.waiting_count();
+        if count == 0 {
+            return None;
+        }
+
+        let label = if spaced {
+            format!("{WAITING_MARK} {count}")
+        } else {
+            format!("{WAITING_MARK}{count}")
+        };
+
+        Some(
+            self.core
+                .applet
+                .text(label)
+                .class(theme::Text::Custom(warning_text))
+                .into(),
+        )
+    }
+
     fn limit_row(&self, label: String, window: RateWindow) -> Element<'_, Message> {
         let percent = window.used_percentage;
         let reset = match window.seconds_until_reset(self.now) {
@@ -276,16 +311,7 @@ impl Window {
 }
 
 fn session_row(session: &Session) -> Element<'_, Message> {
-    let status = text::caption(if session.is_busy() {
-        fl!("status-busy")
-    } else {
-        fl!("status-idle")
-    })
-    .class(if session.is_busy() {
-        theme::Text::Accent
-    } else {
-        theme::Text::Default
-    });
+    let status = text::caption(status_label(session.status)).class(status_class(session.status));
 
     let mut details = vec![session.dir_label().to_string()];
     if let Some(percent) = session.context_percent {
@@ -304,15 +330,49 @@ fn session_row(session: &Session) -> Element<'_, Message> {
     .into()
 }
 
-/// `● 3 · 50%` - the dot is drawn in the accent colour while a session is
-/// working. Shared with `--dump` so the debug output matches the panel.
-pub fn panel_label(data: &AppData, now: i64) -> String {
-    let count = data.sessions.len();
-
-    match data.five_hour_percent(now) {
-        Some(percent) => format!("{BUSY_DOT} {count}{SEPARATOR}{percent:.0}%"),
-        None => format!("{BUSY_DOT} {count}"),
+fn status_label(status: SessionStatus) -> String {
+    match status {
+        SessionStatus::Busy => fl!("status-busy"),
+        SessionStatus::Waiting => fl!("status-waiting"),
+        SessionStatus::Shell => fl!("status-shell"),
+        SessionStatus::Idle => fl!("status-idle"),
+        SessionStatus::Unknown => fl!("status-unknown"),
     }
+}
+
+fn status_class(status: SessionStatus) -> theme::Text {
+    match status {
+        SessionStatus::Waiting => theme::Text::Custom(warning_text),
+        SessionStatus::Busy => theme::Text::Accent,
+        _ => theme::Text::Default,
+    }
+}
+
+/// `theme::Text::Custom` takes a plain fn pointer rather than a closure, so the
+/// warning colour needs a function of its own.
+fn warning_text(theme: &cosmic::Theme) -> cosmic::iced::widget::text::Style {
+    cosmic::iced::widget::text::Style {
+        color: Some(theme.cosmic().warning_text_color().into()),
+        ..Default::default()
+    }
+}
+
+/// `● 3 ▲ 1 · 50%` - the dot is drawn in the accent colour while a
+/// session is working, the triangle in the warning colour while one is blocked
+/// on the user. Shared with `--dump` so the debug output matches the panel.
+pub fn panel_label(data: &AppData, now: i64) -> String {
+    let mut label = format!("{BUSY_DOT} {}", data.sessions.len());
+
+    let waiting = data.waiting_count();
+    if waiting > 0 {
+        label.push_str(&format!(" {WAITING_MARK} {waiting}"));
+    }
+
+    if let Some(percent) = data.five_hour_percent(now) {
+        label.push_str(&format!("{SEPARATOR}{percent:.0}%"));
+    }
+
+    label
 }
 
 /// Deliberately compact: the popup has little room and the numbers matter more
@@ -362,6 +422,7 @@ mod tests {
             name: name.to_string(),
             cwd: format!("/home/u/{name}"),
             status,
+            status_updated_at: None,
             started_at: None,
             version: None,
             context_percent: None,
@@ -406,5 +467,42 @@ mod tests {
         assert_eq!(panel_label(&data, 1_500), "\u{25cf} 2");
         data.sessions[1].status = SessionStatus::Idle;
         assert!(!data.any_busy());
+    }
+
+    /// The count of sessions blocked on the user is the reason to look at the
+    /// panel at all, so it has to survive next to every other part of the
+    /// label.
+    #[test]
+    fn panel_label_counts_the_sessions_that_need_the_user() {
+        let mut data = AppData {
+            sessions: vec![
+                session("a", SessionStatus::Busy),
+                session("b", SessionStatus::Waiting),
+                session("c", SessionStatus::Waiting),
+            ],
+            limits: None,
+        };
+
+        assert_eq!(data.waiting_count(), 2);
+        assert_eq!(panel_label(&data, 0), "\u{25cf} 3 \u{25b2} 2");
+
+        data.limits = Some(Limits {
+            five_hour: Some(RateWindow {
+                used_percentage: 12.0,
+                resets_at: 2_000,
+            }),
+            seven_day: None,
+            captured_at: 1_000,
+            source_session: "a".into(),
+        });
+        assert_eq!(
+            panel_label(&data, 1_500),
+            "\u{25cf} 3 \u{25b2} 2 \u{b7} 12%"
+        );
+
+        // A shell or an unknown state is not a call for attention.
+        data.sessions[1].status = SessionStatus::Shell;
+        data.sessions[2].status = SessionStatus::Unknown;
+        assert_eq!(panel_label(&data, 1_500), "\u{25cf} 3 \u{b7} 12%");
     }
 }
