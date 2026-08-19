@@ -6,35 +6,19 @@ much of your Claude subscription's 5-hour and weekly usage limits you have consu
 It can also tell you - as a desktop notification - when a session has finished or
 wants an answer.
 
-```
-[ ● 2 ▲ 1 · 68% ]         <- dot in the accent colour while a session works,
-                             triangle in the warning colour with the number of
-                             sessions blocked on you
+![Two sessions in the panel, one waiting, next to 68% of the 5-hour window](data/screenshots/panel.png)
 
-┌──────────────────────────────┐
-│ cosmic-applet-4f     working │
-│ cosmic-applet · 62% context  │
-│ · Opus 5                     │
-│ api-server-7b      needs you │
-│ api-server · 11% context     │
-│ ──────────────────────────── │
-│ 5-hour limit             68% │
-│ ████████████████░░░░░░░░░░   │
-│ resets in 1h 12m             │
-│ Weekly limit             41% │
-│ ██████████░░░░░░░░░░░░░░░░   │
-│ resets Wed 09:00             │
-│ ──────────────────────────── │
-│ Notify when a session        │
-│ finishes                 ◉── │
-│ Notify when a session        │
-│ needs me                 ◉── │
-└──────────────────────────────┘
-```
+The dot carries the accent colour while a session is working; the triangle counts, in
+the warning colour, the sessions that are blocked on you. Clicking opens the popup:
+
+![The popup: both sessions, the 5-hour and weekly windows, the notification switches](data/screenshots/popup.png)
 
 On a vertical panel there is no room for the percentage, so the applet shows the
 icon, the session count and - when it applies - the waiting count only. Clicking it
 opens the popup either way.
+
+The sessions in those screenshots are made up; everything around them is the applet
+as it runs.
 
 > Unofficial community project. Not affiliated with, endorsed by, or supported by
 > Anthropic. "Claude" and "Claude Code" are trademarks of Anthropic.
